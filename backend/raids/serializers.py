@@ -23,6 +23,7 @@ class RoleVariantSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "role",
+            "spot",
             "correct_position",
             "tolerance",
             "alt_positions",
@@ -77,6 +78,8 @@ class MechanicDetailSerializer(serializers.ModelSerializer):
     fight_slug = serializers.CharField(source="fight.slug", read_only=True)
     fight_short_name = serializers.CharField(source="fight.short_name", read_only=True)
     arena_shape = serializers.CharField(source="fight.arena_shape", read_only=True)
+    arena_image_url = serializers.CharField(source="fight.arena_image_url", read_only=True)
+    boss_image_url = serializers.CharField(source="fight.boss_image_url", read_only=True)
 
     class Meta:
         model = Mechanic
@@ -92,6 +95,8 @@ class MechanicDetailSerializer(serializers.ModelSerializer):
             "fight_slug",
             "fight_short_name",
             "arena_shape",
+            "arena_image_url",
+            "boss_image_url",
             "steps",
         ]
 
@@ -112,6 +117,8 @@ class FightListSerializer(serializers.ModelSerializer):
             "arena_shape",
             "order",
             "thumbnail_url",
+            "arena_image_url",
+            "boss_image_url",
             "mechanic_count",
             "raid_tier_name",
         ]
@@ -133,6 +140,8 @@ class FightDetailSerializer(serializers.ModelSerializer):
             "arena_shape",
             "order",
             "thumbnail_url",
+            "arena_image_url",
+            "boss_image_url",
             "raid_tier_name",
             "mechanics",
         ]
@@ -178,9 +187,10 @@ class SimulateStepSerializer(serializers.Serializer):
     """Input for the simulate-step endpoint."""
     step_id = serializers.IntegerField()
     role = serializers.ChoiceField(
-        choices=[("TANK", "Tank"), ("HEALER", "Healer"), ("MELEE", "Melee"),
-                 ("RANGED", "Ranged"), ("CASTER", "Caster")]
+        choices=[("TANK", "Tank"), ("HEALER", "Healer"),
+                 ("MELEE", "Melee"), ("RANGED", "Ranged")]
     )
+    spot = serializers.ChoiceField(choices=[1, 2], default=1)
     # For POSITION actions
     submitted_x = serializers.FloatField(required=False, allow_null=True)
     submitted_y = serializers.FloatField(required=False, allow_null=True)
@@ -213,3 +223,25 @@ class SessionStatsSerializer(serializers.Serializer):
     avg_time_ms = serializers.FloatField()
     grade = serializers.CharField()
     per_mechanic = serializers.ListField()
+
+
+class DrillPlanFightSerializer(serializers.Serializer):
+    """Lightweight fight header embedded in a drill plan."""
+    slug = serializers.CharField()
+    short_name = serializers.CharField()
+    name = serializers.CharField()
+    boss_name = serializers.CharField()
+    arena_shape = serializers.CharField()
+    arena_image_url = serializers.CharField(allow_blank=True)
+    boss_image_url = serializers.CharField(allow_blank=True)
+
+
+class DrillPlanSerializer(serializers.Serializer):
+    """
+    Flattened drill plan for the whole fight or a phase.
+    `scope` is either "full" or the phase name.
+    `mechanics` is the ordered list of mechanics (each with nested steps).
+    """
+    fight = DrillPlanFightSerializer()
+    scope = serializers.CharField()
+    mechanics = MechanicDetailSerializer(many=True)

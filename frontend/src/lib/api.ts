@@ -1,11 +1,13 @@
 /** API client for the Django backend. */
 
 import type {
+  DrillPlan,
   Fight,
   Mechanic,
   RaidTier,
   Role,
   SessionStats,
+  Spot,
   StepResult,
 } from "./types";
 
@@ -71,11 +73,22 @@ export async function fetchMechanic(id: number): Promise<Mechanic> {
   return get<Mechanic>(`/mechanics/${id}/`);
 }
 
+// --- Drill plan ---
+
+export async function fetchDrillPlan(
+  slug: string,
+  phase?: string
+): Promise<DrillPlan> {
+  const qs = phase ? `?phase=${encodeURIComponent(phase)}` : "";
+  return get<DrillPlan>(`/fights/${slug}/drill/${qs}`);
+}
+
 // --- Simulation ---
 
 export async function simulateStep(params: {
   step_id: number;
   role: Role;
+  spot?: Spot;
   submitted_x?: number | null;
   submitted_y?: number | null;
   submitted_choice?: string;

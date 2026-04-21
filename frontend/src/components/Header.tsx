@@ -3,7 +3,7 @@
 import { useAppStore } from "@/lib/store";
 
 export default function Header() {
-  const { phase, role, fight, reset, goToPhase } = useAppStore();
+  const { phase, role, spot, fight, reset, goToPhase } = useAppStore();
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 bg-[#0d0d1a]/85 backdrop-blur-xl border-b border-[rgba(200,164,90,0.15)]">
@@ -25,7 +25,7 @@ export default function Header() {
         <nav className="flex items-center gap-2 text-xs tracking-wide">
           {role && (
             <span className="px-2 py-1 rounded border border-gold/20 text-gold font-cinzel">
-              {role}
+              {role} &middot; {spot}
             </span>
           )}
           {fight && phase !== "fight-browse" && (

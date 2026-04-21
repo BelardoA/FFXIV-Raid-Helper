@@ -12,10 +12,6 @@ export default function Timer({ seconds, running, onExpire }: TimerProps) {
   const [remaining, setRemaining] = useState(seconds);
 
   useEffect(() => {
-    setRemaining(seconds);
-  }, [seconds]);
-
-  useEffect(() => {
     if (!running || remaining <= 0) return;
     const interval = setInterval(() => {
       setRemaining((prev) => {

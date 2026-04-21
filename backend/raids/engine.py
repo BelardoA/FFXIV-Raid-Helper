@@ -76,6 +76,7 @@ def evaluate_choice(
 def evaluate_step(
     step: MechanicStep,
     role: str,
+    spot: int = 1,
     submitted_x: float | None = None,
     submitted_y: float | None = None,
     submitted_choice: str | None = None,
@@ -83,28 +84,36 @@ def evaluate_step(
     """
     Evaluate a user's answer for a single mechanic step.
 
+    Resolution order for the RoleVariant:
+      1. Exact match on (role, spot)
+      2. Fallback to (role, spot=1) — mechanics where both spots share an answer
+         can omit the spot=2 variant.
+      3. Any single universal variant on the step.
+
     This is the primary entry point for the engine.
     """
-    # Resolve the role variant for this step+role
+    variant = None
     try:
-        variant = step.role_variants.get(role=role)
+        variant = step.role_variants.get(role=role, spot=spot)
     except RoleVariant.DoesNotExist:
-        # Fall back to any "universal" variant if one exists
-        # (steps where all roles do the same thing might only have one variant)
-        variants = list(step.role_variants.all())
-        if len(variants) == 1:
-            variant = variants[0]
-        else:
-            return StepResult(
-                is_correct=False,
-                explanation=f"No solution defined for role '{role}' on this step.",
-                correct_position=None,
-                correct_choice=None,
-                distance=None,
-                tolerance_used=DEFAULT_TOLERANCE,
-                has_next_step=_has_next_step(step),
-                next_step_order=_next_step_order(step),
-            )
+        if spot != 1:
+            variant = step.role_variants.filter(role=role, spot=1).first()
+        if variant is None:
+            variants = list(step.role_variants.all())
+            if len(variants) == 1:
+                variant = variants[0]
+
+    if variant is None:
+        return StepResult(
+            is_correct=False,
+            explanation=f"No solution defined for role '{role}' spot {spot} on this step.",
+            correct_position=None,
+            correct_choice=None,
+            distance=None,
+            tolerance_used=DEFAULT_TOLERANCE,
+            has_next_step=_has_next_step(step),
+            next_step_order=_next_step_order(step),
+        )
 
     tolerance = (
         variant.tolerance if variant.tolerance is not None

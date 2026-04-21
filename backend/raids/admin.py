@@ -65,8 +65,8 @@ class MechanicStepAdmin(admin.ModelAdmin):
 
 @admin.register(RoleVariant)
 class RoleVariantAdmin(admin.ModelAdmin):
-    list_display = ["step", "role"]
-    list_filter = ["role"]
+    list_display = ["step", "role", "spot"]
+    list_filter = ["role", "spot"]
 
 
 @admin.register(UserSession)
@@ -77,6 +77,6 @@ class UserSessionAdmin(admin.ModelAdmin):
 
 @admin.register(DrillResult)
 class DrillResultAdmin(admin.ModelAdmin):
-    list_display = ["session", "step", "role", "is_correct", "time_taken_ms", "attempted_at"]
-    list_filter = ["is_correct", "role"]
+    list_display = ["session", "step", "role", "spot", "is_correct", "time_taken_ms", "attempted_at"]
+    list_filter = ["is_correct", "role", "spot"]
     readonly_fields = ["attempted_at"]

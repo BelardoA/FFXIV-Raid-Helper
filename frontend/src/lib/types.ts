@@ -1,6 +1,7 @@
 /** Shared TypeScript types mirroring the Django API responses. */
 
-export type Role = "TANK" | "HEALER" | "MELEE" | "RANGED" | "CASTER";
+export type Role = "TANK" | "HEALER" | "MELEE" | "RANGED";
+export type Spot = 1 | 2;
 export type Difficulty = "NORMAL" | "SAVAGE" | "EXTREME" | "ULTIMATE";
 export type ArenaShape = "SQUARE" | "CIRCLE";
 export type ActionType = "POSITION" | "CHOICE";
@@ -28,6 +29,8 @@ export interface Fight {
   arena_shape: ArenaShape;
   order: number;
   thumbnail_url: string;
+  arena_image_url: string;
+  boss_image_url: string;
   mechanic_count: number;
   raid_tier_name: string;
   mechanics?: MechanicSummary[];
@@ -57,6 +60,8 @@ export interface Mechanic {
   fight_slug: string;
   fight_short_name: string;
   arena_shape: ArenaShape;
+  arena_image_url: string;
+  boss_image_url: string;
   steps: MechanicStep[];
 }
 
@@ -77,6 +82,7 @@ export interface MechanicStep {
 export interface RoleVariant {
   id: number;
   role: Role;
+  spot: Spot;
   correct_position: { x: number; y: number };
   tolerance: number | null;
   alt_positions: { x: number; y: number; label?: string }[];
@@ -159,6 +165,25 @@ export interface StepResult {
   tolerance_used: number;
   has_next_step: boolean;
   next_step_order: number | null;
+}
+
+// --- Drill plan ---
+
+export interface DrillPlanFight {
+  slug: string;
+  short_name: string;
+  name: string;
+  boss_name: string;
+  arena_shape: ArenaShape;
+  arena_image_url: string;
+  boss_image_url: string;
+}
+
+export interface DrillPlan {
+  /** "full" for the whole fight, otherwise the phase name. */
+  scope: string;
+  fight: DrillPlanFight;
+  mechanics: Mechanic[];
 }
 
 // --- Session stats ---

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
+import type { Mechanic, MechanicStep } from "@/lib/types";
 
 const GRADE_COLORS: Record<string, string> = {
   S: "text-yellow-400",
@@ -19,10 +20,10 @@ function computeGrade(accuracy: number): string {
 }
 
 export default function DrillResults() {
-  const { mechanic, role, stepResults, reset, goToPhase, selectMechanic } =
+  const { drillPlan, role, stepResults, reset, goToPhase, startDrill } =
     useAppStore();
 
-  if (!mechanic || !role) return null;
+  if (!drillPlan || !role) return null;
 
   const total = stepResults.length;
   const correct = stepResults.filter((r) => r.result.is_correct).length;
@@ -34,6 +35,32 @@ export default function DrillResults() {
           stepResults.reduce((sum, r) => sum + r.timeTakenMs, 0) / total
         )
       : 0;
+  const scopeLabel =
+    drillPlan.scope === "full"
+      ? "Full Fight"
+      : drillPlan.mechanics.length === 1
+        ? "Single Mechanic"
+        : drillPlan.scope;
+
+  const mechanicsById = new Map<number, Mechanic>(
+    drillPlan.mechanics.map((mechanic) => [mechanic.id, mechanic])
+  );
+  const perMechanic = drillPlan.mechanics
+    .map((mechanic) => {
+      const results = stepResults.filter((record) => record.mechanicId === mechanic.id);
+      if (results.length === 0) return null;
+      const correctCount = results.filter((record) => record.result.is_correct).length;
+      return {
+        mechanic,
+        total: results.length,
+        correct: correctCount,
+        accuracy: correctCount / results.length,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  const findStep = (mechanicId: number, stepId: number): MechanicStep | undefined =>
+    mechanicsById.get(mechanicId)?.steps.find((step) => step.id === stepId);
 
   return (
     <section className="max-w-lg mx-auto px-4 py-12 text-center">
@@ -49,7 +76,7 @@ export default function DrillResults() {
           {grade}
         </span>
         <p className="text-sm text-text-muted mt-2">
-          {mechanic.fight_short_name} &mdash; {mechanic.name}
+          {drillPlan.fight.short_name} &mdash; {scopeLabel}
         </p>
       </div>
 
@@ -75,6 +102,32 @@ export default function DrillResults() {
         </div>
       </div>
 
+      {perMechanic.length > 1 && (
+        <div className="mb-8 text-left">
+          <h3 className="font-cinzel text-sm text-gold tracking-[0.15em] uppercase mb-3">
+            Mechanic Breakdown
+          </h3>
+          <div className="space-y-2">
+            {perMechanic.map(({ mechanic, total, correct, accuracy: mechanicAccuracy }) => (
+              <div
+                key={mechanic.id}
+                className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-bg-card"
+              >
+                <div>
+                  <p className="text-sm text-white/70">{mechanic.name}</p>
+                  <p className="text-[0.65rem] text-text-muted">
+                    {correct}/{total} correct
+                  </p>
+                </div>
+                <span className="font-cinzel text-sm text-gold-light">
+                  {(mechanicAccuracy * 100).toFixed(0)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Per-step breakdown */}
       <div className="mb-8 text-left">
         <h3 className="font-cinzel text-sm text-gold tracking-[0.15em] uppercase mb-3">
@@ -82,7 +135,8 @@ export default function DrillResults() {
         </h3>
         <div className="space-y-2">
           {stepResults.map((r, i) => {
-            const step = mechanic.steps.find((s) => s.id === r.stepId);
+            const mechanic = mechanicsById.get(r.mechanicId);
+            const step = findStep(r.mechanicId, r.stepId);
             return (
               <div
                 key={i}
@@ -100,9 +154,16 @@ export default function DrillResults() {
                   >
                     {r.result.is_correct ? "\u2713" : "\u2717"}
                   </span>
-                  <span className="text-sm text-white/60">
-                    {step?.title || `Step ${i + 1}`}
-                  </span>
+                  <div className="text-left">
+                    <p className="text-sm text-white/60">
+                      {step?.title || `Step ${i + 1}`}
+                    </p>
+                    {mechanic && drillPlan.mechanics.length > 1 && (
+                      <p className="text-[0.65rem] text-text-muted">
+                        {mechanic.name}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <span className="text-xs text-white/30 font-mono">
                   {(r.timeTakenMs / 1000).toFixed(1)}s
@@ -116,10 +177,7 @@ export default function DrillResults() {
       {/* Actions */}
       <div className="flex gap-3">
         <button
-          onClick={() => {
-            // Retry same mechanic
-            selectMechanic(mechanic);
-          }}
+          onClick={() => startDrill(drillPlan)}
           className="flex-1 py-3 rounded-xl bg-gold/20 border border-gold/30 text-gold font-cinzel tracking-wider hover:bg-gold/30 transition-colors"
         >
           Retry

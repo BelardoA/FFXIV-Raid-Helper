@@ -14,7 +14,6 @@ const ROLE_COLORS: Record<Role, string> = {
   HEALER: "#22c77a",
   MELEE: "#ff6b35",
   RANGED: "#f4c430",
-  CASTER: "#b06aff",
 };
 
 const MARKER_COLORS: Record<string, string> = {
@@ -32,10 +31,12 @@ interface ArenaProps {
   arenaState: ArenaState;
   shape: ArenaShape;
   role: Role;
+  arenaImageUrl?: string;
+  bossImageUrl?: string;
   // Click interaction
   allowClick?: boolean;
   locked?: boolean;
-  onPositionClick?: (pos: { x: number; y: number }) => void;
+  onPositionClick?: (pos: { x: number; y: number }, timeStamp: number) => void;
   // Feedback overlays
   submittedPosition?: { x: number; y: number } | null;
   correctPosition?: { x: number; y: number } | null;
@@ -48,6 +49,8 @@ export default function Arena({
   arenaState,
   shape,
   role,
+  arenaImageUrl,
+  bossImageUrl,
   allowClick = true,
   locked = false,
   onPositionClick,
@@ -62,6 +65,38 @@ export default function Arena({
     null
   );
   const [size, setSize] = useState(460);
+  const [arenaAsset, setArenaAsset] = useState<{
+    image: HTMLImageElement | null;
+    url: string;
+  }>({ image: null, url: "" });
+  const [bossAsset, setBossAsset] = useState<{
+    image: HTMLImageElement | null;
+    url: string;
+  }>({ image: null, url: "" });
+
+  // Load image assets
+  useEffect(() => {
+    if (!arenaImageUrl) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => setArenaAsset({ image: img, url: arenaImageUrl });
+    img.onerror = () => setArenaAsset({ image: null, url: arenaImageUrl });
+    img.src = arenaImageUrl;
+  }, [arenaImageUrl]);
+
+  useEffect(() => {
+    if (!bossImageUrl) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => setBossAsset({ image: img, url: bossImageUrl });
+    img.onerror = () => setBossAsset({ image: null, url: bossImageUrl });
+    img.src = bossImageUrl;
+  }, [bossImageUrl]);
+
+  const arenaImg =
+    arenaImageUrl && arenaAsset.url === arenaImageUrl ? arenaAsset.image : null;
+  const bossImg =
+    bossImageUrl && bossAsset.url === bossImageUrl ? bossAsset.image : null;
 
   // Resize handler
   useEffect(() => {
@@ -90,8 +125,8 @@ export default function Arena({
 
     ctx.clearRect(0, 0, s, s);
 
-    // Arena floor
-    drawArenaFloor(ctx, s, shape);
+    // Arena floor (image or canvas-drawn)
+    drawArenaFloor(ctx, s, shape, arenaImg);
 
     // Safe zones
     if (showAnswer && safeZones.length > 0) {
@@ -135,7 +170,7 @@ export default function Arena({
 
     // Boss
     if (arenaState.boss_position) {
-      drawBoss(ctx, arenaState.boss_position.x * s, arenaState.boss_position.y * s, s);
+      drawBoss(ctx, arenaState.boss_position.x * s, arenaState.boss_position.y * s, s, bossImg);
     }
 
     // Correct answer crosshair
@@ -174,6 +209,8 @@ export default function Arena({
     showAnswer,
     isCorrect,
     safeZones,
+    arenaImg,
+    bossImg,
   ]);
 
   useEffect(() => {
@@ -184,7 +221,7 @@ export default function Arena({
   const handleClick = (e: React.MouseEvent) => {
     if (!allowClick || locked || submittedPosition) return;
     const pos = canvasPos(e);
-    onPositionClick?.(pos);
+    onPositionClick?.(pos, e.timeStamp);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -243,7 +280,8 @@ export default function Arena({
 function drawArenaFloor(
   ctx: CanvasRenderingContext2D,
   s: number,
-  shape: ArenaShape
+  shape: ArenaShape,
+  img: HTMLImageElement | null
 ) {
   ctx.save();
 
@@ -253,13 +291,19 @@ function drawArenaFloor(
     ctx.clip();
   }
 
-  // Dark floor gradient
-  const grad = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.7);
-  grad.addColorStop(0, "#1a1a2e");
-  grad.addColorStop(0.6, "#16162a");
-  grad.addColorStop(1, "#0d0d1a");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, s, s);
+  if (img) {
+    ctx.drawImage(img, 0, 0, s, s);
+    // Darken slightly so overlays remain readable
+    ctx.fillStyle = "rgba(13,13,26,0.35)";
+    ctx.fillRect(0, 0, s, s);
+  } else {
+    const grad = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.7);
+    grad.addColorStop(0, "#1a1a2e");
+    grad.addColorStop(0.6, "#16162a");
+    grad.addColorStop(1, "#0d0d1a");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, s, s);
+  }
 
   // Grid
   ctx.strokeStyle = "rgba(255,255,255,0.04)";
@@ -384,7 +428,8 @@ function drawBoss(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  s: number
+  s: number,
+  img: HTMLImageElement | null
 ) {
   const r = s * 0.055;
   ctx.save();
@@ -398,21 +443,33 @@ function drawBoss(
   ctx.arc(x, y, r * 2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Circle
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = "#cc2222";
-  ctx.fill();
-  ctx.strokeStyle = "#ff6666";
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#ff6666";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#cc2222";
+    ctx.fill();
+    ctx.strokeStyle = "#ff6666";
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  // Icon
-  ctx.fillStyle = "#fff";
-  ctx.font = `bold ${r * 0.9}px Cinzel, serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("\u2694", x, y);
+    ctx.fillStyle = "#fff";
+    ctx.font = `bold ${r * 0.9}px Cinzel, serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("\u2694", x, y);
+  }
 
   ctx.restore();
 }

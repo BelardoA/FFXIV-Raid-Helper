@@ -9,6 +9,11 @@ urlpatterns = [
     # Fights
     path("fights/", views.FightListView.as_view(), name="fight-list"),
     path("fights/<slug:slug>/", views.FightDetailView.as_view(), name="fight-detail"),
+    path(
+        "fights/<slug:slug>/drill/",
+        views.FightDrillPlanView.as_view(),
+        name="fight-drill-plan",
+    ),
     # Mechanics
     path("mechanics/", views.MechanicListView.as_view(), name="mechanic-list"),
     path("mechanics/<int:pk>/", views.MechanicDetailView.as_view(), name="mechanic-detail"),

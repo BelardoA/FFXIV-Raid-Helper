@@ -13,11 +13,21 @@ from django.db import models
 # ---------------------------------------------------------------------------
 
 class Role(models.TextChoices):
+    """
+    Party roles mirror the wtfdig.info layout: Tank / Healer / Melee / Ranged.
+    Ranged DPS covers both physical ranged and casters — party composition is
+    fixed at 2 of each role (see Spot below).
+    """
     TANK = "TANK", "Tank"
     HEALER = "HEALER", "Healer"
     MELEE = "MELEE", "Melee DPS"
     RANGED = "RANGED", "Ranged DPS"
-    CASTER = "CASTER", "Caster DPS"
+
+
+class Spot(models.IntegerChoices):
+    """Party slot within a role — MT/OT, H1/H2, M1/M2, R1/R2."""
+    ONE = 1, "1"
+    TWO = 2, "2"
 
 
 class Difficulty(models.TextChoices):
@@ -73,6 +83,8 @@ class Fight(models.Model):
     )
     order = models.PositiveIntegerField(default=0)
     thumbnail_url = models.URLField(blank=True)
+    arena_image_url = models.URLField(blank=True)
+    boss_image_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -160,6 +172,7 @@ class RoleVariant(models.Model):
         MechanicStep, on_delete=models.CASCADE, related_name="role_variants"
     )
     role = models.CharField(max_length=20, choices=Role.choices)
+    spot = models.PositiveSmallIntegerField(choices=Spot.choices, default=Spot.ONE)
 
     # For POSITION: {x, y} normalised 0-1
     correct_position = models.JSONField(default=dict)
@@ -182,10 +195,10 @@ class RoleVariant(models.Model):
     explanation = models.TextField(blank=True)
 
     class Meta:
-        unique_together = [("step", "role")]
+        unique_together = [("step", "role", "spot")]
 
     def __str__(self):
-        return f"{self.step} [{self.role}]"
+        return f"{self.step} [{self.role}{self.spot}]"
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +221,7 @@ class DrillResult(models.Model):
     )
     step = models.ForeignKey(MechanicStep, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=Role.choices)
+    spot = models.PositiveSmallIntegerField(choices=Spot.choices, default=Spot.ONE)
 
     # What the user submitted
     submitted_x = models.FloatField(null=True, blank=True)
@@ -223,4 +237,4 @@ class DrillResult(models.Model):
 
     def __str__(self):
         status = "✓" if self.is_correct else "✗"
-        return f"{status} {self.step} [{self.role}]"
+        return f"{status} {self.step} [{self.role}{self.spot}]"

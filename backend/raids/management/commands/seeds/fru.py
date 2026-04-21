@@ -50,7 +50,6 @@ FRU_TIER = {
                                 {"role": "HEALER", "correct_position": {"x": 0.5,  "y": 0.8}},
                                 {"role": "MELEE",  "correct_position": {"x": 0.15, "y": 0.5}},
                                 {"role": "RANGED", "correct_position": {"x": 0.85, "y": 0.5}},
-                                {"role": "CASTER", "correct_position": {"x": 0.85, "y": 0.5}},
                             ],
                         },
                         {
@@ -68,7 +67,6 @@ FRU_TIER = {
                                 {"role": "HEALER", "correct_position": {"x": 0.85, "y": 0.85}},
                                 {"role": "MELEE",  "correct_position": {"x": 0.5,  "y": 0.8}},
                                 {"role": "RANGED", "correct_position": {"x": 0.5,  "y": 0.2}},
-                                {"role": "CASTER", "correct_position": {"x": 0.85, "y": 0.15}},
                             ],
                         },
                     ],
@@ -119,7 +117,6 @@ FRU_TIER = {
                                 {"role": "HEALER", "correct_position": {"x": 0.75, "y": 0.75}, "tolerance": 0.10},
                                 {"role": "MELEE",  "correct_position": {"x": 0.75, "y": 0.25}, "tolerance": 0.10},
                                 {"role": "RANGED", "correct_position": {"x": 0.25, "y": 0.75}, "tolerance": 0.10},
-                                {"role": "CASTER", "correct_position": {"x": 0.25, "y": 0.75}, "tolerance": 0.10},
                             ],
                         },
                     ],

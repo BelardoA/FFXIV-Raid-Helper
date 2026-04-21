@@ -83,6 +83,57 @@ class FightAPITests(APITestBase):
         self.assertEqual(resp2.json()["count"], 0)
 
 
+class DrillPlanAPITests(APITestBase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        # Add a second mechanic in a different phase to exercise filtering.
+        cls.mech2 = Mechanic.objects.create(
+            fight=cls.fight, slug="test-mech-2", name="Test Mech P2",
+            phase_name="P2", order=2, difficulty_rating=4,
+        )
+        cls.step2 = MechanicStep.objects.create(
+            mechanic=cls.mech2, order=1, title="Step 2A",
+            action_type="POSITION",
+        )
+        RoleVariant.objects.create(
+            step=cls.step2, role="HEALER",
+            correct_position={"x": 0.3, "y": 0.3},
+        )
+
+    def test_full_fight_scope(self):
+        resp = self.client.get("/api/fights/test-fight/drill/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["scope"], "full")
+        self.assertEqual(data["fight"]["slug"], "test-fight")
+        self.assertEqual(len(data["mechanics"]), 2)
+        # Mechanics ordered by `order`
+        self.assertEqual(data["mechanics"][0]["slug"], "test-mech")
+        self.assertEqual(data["mechanics"][1]["slug"], "test-mech-2")
+        # Steps + role variants are inlined
+        self.assertEqual(len(data["mechanics"][0]["steps"]), 1)
+        self.assertEqual(
+            len(data["mechanics"][0]["steps"][0]["role_variants"]), 1
+        )
+
+    def test_phase_scope(self):
+        resp = self.client.get("/api/fights/test-fight/drill/?phase=P2")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["scope"], "P2")
+        self.assertEqual(len(data["mechanics"]), 1)
+        self.assertEqual(data["mechanics"][0]["slug"], "test-mech-2")
+
+    def test_unknown_phase_returns_404(self):
+        resp = self.client.get("/api/fights/test-fight/drill/?phase=Nonexistent")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_fight_returns_404(self):
+        resp = self.client.get("/api/fights/nope/drill/")
+        self.assertEqual(resp.status_code, 404)
+
+
 class MechanicAPITests(APITestBase):
     def test_list_mechanics(self):
         resp = self.client.get("/api/mechanics/?fight=test-fight")

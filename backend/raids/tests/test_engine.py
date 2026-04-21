@@ -127,9 +127,59 @@ class EvaluateStepTests(TestCase):
         self.assertFalse(result.is_correct)
 
     def test_missing_role_variant(self):
-        result = evaluate_step(self.step1, "CASTER", submitted_x=0.5, submitted_y=0.5)
+        result = evaluate_step(self.step1, "MELEE", submitted_x=0.5, submitted_y=0.5)
         self.assertFalse(result.is_correct)
         self.assertIn("No solution defined", result.explanation)
+
+    def test_spot_differentiation(self):
+        """Two spots on the same role should resolve to different positions."""
+        tier = RaidTier.objects.create(slug="spot-tier", name="Spot Tier", order=77)
+        fight = Fight.objects.create(
+            raid_tier=tier, slug="spot-fight", name="Spot Fight",
+            short_name="SF", boss_name="Boss", difficulty="SAVAGE", order=1,
+        )
+        mech = Mechanic.objects.create(
+            fight=fight, slug="spot-mech", name="Spot Mechanic", order=1,
+        )
+        step = MechanicStep.objects.create(
+            mechanic=mech, order=1, title="Spot step",
+            action_type="POSITION",
+        )
+        RoleVariant.objects.create(
+            step=step, role="TANK", spot=1,
+            correct_position={"x": 0.3, "y": 0.5},
+        )
+        RoleVariant.objects.create(
+            step=step, role="TANK", spot=2,
+            correct_position={"x": 0.7, "y": 0.5},
+        )
+        t1 = evaluate_step(step, "TANK", spot=1, submitted_x=0.3, submitted_y=0.5)
+        t2 = evaluate_step(step, "TANK", spot=2, submitted_x=0.7, submitted_y=0.5)
+        wrong = evaluate_step(step, "TANK", spot=2, submitted_x=0.3, submitted_y=0.5)
+        self.assertTrue(t1.is_correct)
+        self.assertTrue(t2.is_correct)
+        self.assertFalse(wrong.is_correct)
+
+    def test_spot_fallback_to_one(self):
+        """When only spot=1 exists, spot=2 requests fall back to it."""
+        tier = RaidTier.objects.create(slug="fb-tier", name="Fb Tier", order=78)
+        fight = Fight.objects.create(
+            raid_tier=tier, slug="fb-fight", name="Fb Fight",
+            short_name="FB", boss_name="Boss", difficulty="SAVAGE", order=1,
+        )
+        mech = Mechanic.objects.create(
+            fight=fight, slug="fb-mech", name="Fb Mechanic", order=1,
+        )
+        step = MechanicStep.objects.create(
+            mechanic=mech, order=1, title="Fb step",
+            action_type="POSITION",
+        )
+        RoleVariant.objects.create(
+            step=step, role="HEALER", spot=1,
+            correct_position={"x": 0.5, "y": 0.2},
+        )
+        result = evaluate_step(step, "HEALER", spot=2, submitted_x=0.5, submitted_y=0.2)
+        self.assertTrue(result.is_correct)
 
     def test_no_position_submitted(self):
         result = evaluate_step(self.step1, "TANK")

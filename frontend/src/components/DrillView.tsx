@@ -1,24 +1,93 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { simulateStep } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
-import type { MechanicStep, StepResult, RoleVariant } from "@/lib/types";
+import type { DrillPlan, Mechanic, MechanicStep, Role, RoleVariant, Spot, StepResult } from "@/lib/types";
 import Arena from "./Arena";
 import Timer from "./Timer";
 
 export default function DrillView() {
   const {
-    mechanic,
+    drillPlan,
     role,
+    spot,
+    currentMechanicIndex,
     currentStepIndex,
     sessionKey,
     recordStep,
     advanceStep,
-    finishDrill,
     goToPhase,
   } = useAppStore();
 
+  const totals = useMemo(() => {
+    if (!drillPlan) return { flatIndex: 0, totalSteps: 0 };
+    let totalSteps = 0;
+    let flatIndex = 0;
+    drillPlan.mechanics.forEach((m, mi) => {
+      if (mi < currentMechanicIndex) {
+        flatIndex += m.steps.length;
+      } else if (mi === currentMechanicIndex) {
+        flatIndex += currentStepIndex;
+      }
+      totalSteps += m.steps.length;
+    });
+    return { flatIndex, totalSteps };
+  }, [drillPlan, currentMechanicIndex, currentStepIndex]);
+
+  const mechanic = drillPlan?.mechanics[currentMechanicIndex];
+  const step: MechanicStep | undefined = mechanic?.steps[currentStepIndex];
+
+  if (!drillPlan || !role || !mechanic || !step) return null;
+
+  return (
+    <DrillStepScreen
+      key={step.id}
+      advanceStep={advanceStep}
+      currentMechanicIndex={currentMechanicIndex}
+      currentStepIndex={currentStepIndex}
+      drillPlan={drillPlan}
+      goToPhase={goToPhase}
+      mechanic={mechanic}
+      recordStep={recordStep}
+      role={role}
+      sessionKey={sessionKey}
+      spot={spot}
+      step={step}
+      totals={totals}
+    />
+  );
+}
+
+interface DrillStepScreenProps {
+  advanceStep: () => void;
+  currentMechanicIndex: number;
+  currentStepIndex: number;
+  drillPlan: DrillPlan;
+  goToPhase: (phase: "mechanic-select") => void;
+  mechanic: Mechanic;
+  recordStep: ReturnType<typeof useAppStore.getState>["recordStep"];
+  role: Role;
+  sessionKey: string;
+  spot: Spot;
+  step: MechanicStep;
+  totals: { flatIndex: number; totalSteps: number };
+}
+
+function DrillStepScreen({
+  advanceStep,
+  currentMechanicIndex,
+  currentStepIndex,
+  drillPlan,
+  goToPhase,
+  mechanic,
+  recordStep,
+  role,
+  sessionKey,
+  spot,
+  step,
+  totals,
+}: DrillStepScreenProps) {
   const [submittedPos, setSubmittedPos] = useState<{
     x: number;
     y: number;
@@ -26,97 +95,114 @@ export default function DrillView() {
   const [result, setResult] = useState<StepResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [timerRunning, setTimerRunning] = useState(true);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(0);
 
-  if (!mechanic || !role) return null;
+  useEffect(() => {
+    startTimeRef.current = performance.now();
+  }, []);
 
-  const steps = mechanic.steps;
-  const step: MechanicStep | undefined = steps[currentStepIndex];
+  const variant: RoleVariant | undefined =
+    step.role_variants.find((v) => v.role === role && v.spot === spot) ||
+    step.role_variants.find((v) => v.role === role && v.spot === 1);
 
-  if (!step) {
-    // All steps done
-    finishDrill();
-    return null;
-  }
+  const isFinalStep =
+    currentMechanicIndex === drillPlan.mechanics.length - 1 &&
+    currentStepIndex === mechanic.steps.length - 1;
 
-  // Find the role variant for the current role
-  const variant: RoleVariant | undefined = step.role_variants.find(
-    (v) => v.role === role
+  const scopeLabel =
+    drillPlan.scope === "full"
+      ? "Full Fight"
+      : drillPlan.mechanics.length === 1
+        ? "Single Mechanic"
+      : drillPlan.scope;
+
+  const submitPosition = useCallback(
+    async (pos: { x: number; y: number }, timeTaken: number) => {
+      if (!step || !role || !mechanic) return;
+      const res = await simulateStep({
+        step_id: step.id,
+        role,
+        spot,
+        submitted_x: pos.x,
+        submitted_y: pos.y,
+        session_key: sessionKey,
+        time_taken_ms: timeTaken,
+      });
+
+      setResult(res);
+      recordStep({
+        mechanicId: mechanic.id,
+        stepId: step.id,
+        result: res,
+        timeTakenMs: timeTaken,
+      });
+    },
+    [mechanic, recordStep, role, sessionKey, spot, step]
   );
 
-  const handlePositionClick = async (pos: { x: number; y: number }) => {
+  const handlePositionClick = async (
+    pos: { x: number; y: number },
+    eventTimeStamp: number
+  ) => {
     if (loading || result) return;
     setLoading(true);
     setSubmittedPos(pos);
     setTimerRunning(false);
 
-    const timeTaken = Date.now() - startTimeRef.current;
-    const res = await simulateStep({
-      step_id: step.id,
-      role,
-      submitted_x: pos.x,
-      submitted_y: pos.y,
-      session_key: sessionKey,
-      time_taken_ms: timeTaken,
-    });
-
-    setResult(res);
-    recordStep({ stepId: step.id, result: res, timeTakenMs: timeTaken });
+    const timeTaken = Math.max(
+      0,
+      Math.round(eventTimeStamp - startTimeRef.current)
+    );
+    await submitPosition(pos, timeTaken);
     setLoading(false);
   };
 
-  const handleChoiceClick = async (choiceId: string) => {
+  const handleChoiceClick = async (choiceId: string, eventTimeStamp: number) => {
     if (loading || result) return;
     setLoading(true);
     setTimerRunning(false);
 
-    const timeTaken = Date.now() - startTimeRef.current;
+    const timeTaken = Math.max(
+      0,
+      Math.round(eventTimeStamp - startTimeRef.current)
+    );
     const res = await simulateStep({
       step_id: step.id,
       role,
+      spot,
       submitted_choice: choiceId,
       session_key: sessionKey,
       time_taken_ms: timeTaken,
     });
 
     setResult(res);
-    recordStep({ stepId: step.id, result: res, timeTakenMs: timeTaken });
+    recordStep({
+      mechanicId: mechanic.id,
+      stepId: step.id,
+      result: res,
+      timeTakenMs: timeTaken,
+    });
     setLoading(false);
   };
 
   const handleTimerExpire = useCallback(async () => {
-    if (result) return;
+    if (loading || result) return;
+    setLoading(true);
     setTimerRunning(false);
 
-    // Auto-fail: submit a dummy position far from any correct answer
     const timeTaken = step.timer_seconds * 1000;
-    const res = await simulateStep({
-      step_id: step.id,
-      role,
-      submitted_x: -1,
-      submitted_y: -1,
-      session_key: sessionKey,
-      time_taken_ms: timeTaken,
-    });
-
-    setResult(res);
-    recordStep({ stepId: step.id, result: res, timeTakenMs: timeTaken });
-  }, [step, role, sessionKey, result, recordStep]);
+    await submitPosition({ x: -1, y: -1 }, timeTaken);
+    setLoading(false);
+  }, [loading, result, step, submitPosition]);
 
   const handleNext = () => {
-    setSubmittedPos(null);
-    setResult(null);
-    setTimerRunning(true);
-    startTimeRef.current = Date.now();
-
-    if (currentStepIndex + 1 >= steps.length) {
-      finishDrill();
-    } else {
-      advanceStep();
-    }
+    advanceStep();
   };
 
-  const progress = ((currentStepIndex + 1) / steps.length) * 100;
+  const progress =
+    totals.totalSteps > 0
+      ? ((totals.flatIndex + 1) / totals.totalSteps) * 100
+      : 0;
 
   return (
     <section className="max-w-2xl mx-auto px-4 py-6">
@@ -128,13 +214,18 @@ export default function DrillView() {
         >
           &larr; Back
         </button>
-        <div className="text-center">
+        <div className="text-center flex flex-col">
           <span className="font-cinzel text-sm text-gold tracking-wider">
-            {mechanic.fight_short_name} &mdash; {mechanic.name}
+            {drillPlan.fight.short_name} &mdash; {scopeLabel}
           </span>
+          {mechanic.phase_name && drillPlan.mechanics.length > 1 && (
+            <span className="text-[0.65rem] text-text-muted tracking-[0.15em] uppercase">
+              {mechanic.phase_name}
+            </span>
+          )}
         </div>
         <span className="text-xs text-text-muted">
-          {currentStepIndex + 1} / {steps.length}
+          {totals.flatIndex + 1} / {totals.totalSteps}
         </span>
       </div>
 
@@ -145,6 +236,18 @@ export default function DrillView() {
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* Mechanic context */}
+      {drillPlan.mechanics.length > 1 && (
+        <div className="mb-4 text-center">
+          <p className="font-cinzel text-base text-gold-light">
+            {mechanic.name}
+          </p>
+          <p className="text-[0.7rem] text-text-muted">
+            Step {currentStepIndex + 1} of {mechanic.steps.length} in this mechanic
+          </p>
+        </div>
+      )}
 
       {/* Step title + timer */}
       <div className="flex items-center justify-between mb-2">
@@ -163,6 +266,8 @@ export default function DrillView() {
           arenaState={step.arena_state}
           shape={mechanic.arena_shape}
           role={role}
+          arenaImageUrl={mechanic.arena_image_url}
+          bossImageUrl={mechanic.boss_image_url}
           allowClick={!result}
           locked={!!result}
           onPositionClick={handlePositionClick}
@@ -175,21 +280,11 @@ export default function DrillView() {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {step.choices.map((c) => {
-            const isSelected =
-              result && result.correct_choice !== null
-                ? undefined
-                : undefined;
-            const isCorrectChoice =
-              result && c.id === result.correct_choice;
-            const isWrongChoice =
-              result &&
-              c.id !== result.correct_choice &&
-              result.correct_choice !== null;
-
+            const isCorrectChoice = result && c.id === result.correct_choice;
             return (
               <button
                 key={c.id}
-                onClick={() => handleChoiceClick(c.id)}
+                onClick={(event) => handleChoiceClick(c.id, event.timeStamp)}
                 disabled={!!result}
                 className={`p-4 rounded-xl border text-sm font-cinzel transition-all ${
                   result
@@ -236,9 +331,7 @@ export default function DrillView() {
             onClick={handleNext}
             className="w-full py-3 rounded-xl bg-gold/20 border border-gold/30 text-gold font-cinzel tracking-wider hover:bg-gold/30 transition-colors"
           >
-            {currentStepIndex + 1 >= steps.length
-              ? "View Results"
-              : "Next Step \u2192"}
+            {isFinalStep ? "View Results" : "Next Step \u2192"}
           </button>
         </div>
       )}

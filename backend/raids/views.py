@@ -15,6 +15,7 @@ from .models import (
     UserSession,
 )
 from .serializers import (
+    DrillPlanSerializer,
     FightDetailSerializer,
     FightListSerializer,
     MechanicDetailSerializer,
@@ -70,6 +71,54 @@ class FightDetailView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
 
+class FightDrillPlanView(APIView):
+    """
+    GET /api/fights/<slug>/drill/?phase=<phase_name>
+
+    Returns an ordered drill plan for a full fight or a single phase,
+    with every mechanic's steps + role variants inlined.
+    """
+
+    def get(self, request, slug):
+        try:
+            fight = (
+                Fight.objects.filter(is_active=True)
+                .prefetch_related("mechanics__steps__role_variants")
+                .get(slug=slug)
+            )
+        except Fight.DoesNotExist:
+            return Response(
+                {"error": "Fight not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        mechanics = list(fight.mechanics.all().order_by("order"))
+        phase = request.query_params.get("phase", "").strip()
+        scope = "full"
+        if phase:
+            mechanics = [m for m in mechanics if m.phase_name == phase]
+            scope = phase
+            if not mechanics:
+                return Response(
+                    {"error": f"No mechanics found for phase '{phase}'."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        payload = {
+            "fight": {
+                "slug": fight.slug,
+                "short_name": fight.short_name,
+                "name": fight.name,
+                "boss_name": fight.boss_name,
+                "arena_shape": fight.arena_shape,
+                "arena_image_url": fight.arena_image_url,
+                "boss_image_url": fight.boss_image_url,
+            },
+            "scope": scope,
+            "mechanics": MechanicDetailSerializer(mechanics, many=True).data,
+        }
+        return Response(DrillPlanSerializer(payload).data)
+
+
 # ---------------------------------------------------------------------------
 # Mechanics
 # ---------------------------------------------------------------------------
@@ -122,6 +171,7 @@ class SimulateStepView(APIView):
         result = evaluate_step(
             step=step,
             role=data["role"],
+            spot=int(data.get("spot", 1)),
             submitted_x=data.get("submitted_x"),
             submitted_y=data.get("submitted_y"),
             submitted_choice=data.get("submitted_choice", ""),
@@ -135,6 +185,7 @@ class SimulateStepView(APIView):
                 session=session,
                 step=step,
                 role=data["role"],
+                spot=int(data.get("spot", 1)),
                 submitted_x=data.get("submitted_x"),
                 submitted_y=data.get("submitted_y"),
                 submitted_choice=data.get("submitted_choice", ""),

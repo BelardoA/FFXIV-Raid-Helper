@@ -19,18 +19,6 @@ function DifficultyBadge({ difficulty }: { difficulty: string }) {
   );
 }
 
-function Stars({ count }: { count: number }) {
-  return (
-    <span className="text-xs tracking-wider">
-      {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} className={i < count ? "text-gold" : "text-white/15"}>
-          ★
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export default function FightBrowser() {
   const selectFight = useAppStore((s) => s.selectFight);
   const [tiers, setTiers] = useState<RaidTier[]>([]);
