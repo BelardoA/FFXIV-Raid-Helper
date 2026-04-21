@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "RaidCoach XIV — Mechanic Trainer",
   description:
-    "Interactive FFXIV raid mechanic drills for M1S-M4S and FRU. Train your positioning before prog night.",
+    "Interactive FFXIV raid mechanic drills for M1S-M4S, M9S-M12S, and FRU. Train your positioning before prog night.",
 };
 
 export default function RootLayout({
