@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+{% load static raids_admin %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'raids/admin/editor.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="rc-editor-page">
+    <div class="rc-editor-header">
+      <div>
+        <h1>Raid Content Editor</h1>
+        <p>Navigate by fight, then jump straight into mechanics, steps, and role variants.</p>
+      </div>
+      <div class="rc-editor-actions">
+        <a class="button" href="{% url 'admin:raids_raidtier_changelist' %}">Raid tiers</a>
+        <a class="button" href="{% url 'admin:raids_fight_changelist' %}">All fights</a>
+        <a class="button default" href="{% url 'admin:raids_fight_add' %}">Add fight</a>
+      </div>
+    </div>
+
+    {% for tier in tiers %}
+      <section class="rc-card">
+        <div class="rc-card-header">
+          <div>
+            <h2>{{ tier.name }}</h2>
+            <p>{{ tier.expansion }}{% if tier.patch %} · Patch {{ tier.patch }}{% endif %}</p>
+          </div>
+          <a class="button" href="{% url 'admin:raids_raidtier_change' tier.pk %}">Edit tier</a>
+        </div>
+
+        {% with fights=fights_by_tier|get_item:tier.pk %}
+          {% if fights %}
+            <div class="rc-grid">
+              {% for fight in fights %}
+                <article class="rc-fight-tile">
+                  <div class="rc-fight-title">
+                    <h3>{{ fight.short_name }}</h3>
+                    <span class="rc-badge">{{ fight.difficulty }}</span>
+                  </div>
+                  <p class="rc-fight-boss">{{ fight.boss_name }}</p>
+                  <p class="rc-fight-meta">
+                    {{ fight.mechanic_total }} mechanics · {{ fight.step_total }} steps · {{ fight.role_variant_total }} role variants
+                  </p>
+                  <div class="rc-link-row">
+                    <a class="button default" href="{% url 'admin:raids_editor_fight' fight.pk %}">Open editor</a>
+                    <a class="button" href="{% url 'admin:raids_fight_change' fight.pk %}">Fight record</a>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="rc-empty">No fights in this tier yet.</p>
+          {% endif %}
+        {% endwith %}
+      </section>
+    {% endfor %}
+  </div>
+{% endblock %}

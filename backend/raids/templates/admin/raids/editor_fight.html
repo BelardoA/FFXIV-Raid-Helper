@@ -1,0 +1,109 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'raids/admin/editor.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="rc-editor-page">
+    <div class="rc-editor-header">
+      <div>
+        <p><a href="{% url 'admin:raids_editor_index' %}">Raid Content Editor</a></p>
+        <h1>{{ fight.short_name }} · {{ fight.boss_name }}</h1>
+        <p>{{ fight.name }} · {{ fight.get_difficulty_display }} · {{ fight.raid_tier.name }}</p>
+      </div>
+      <div class="rc-editor-actions">
+        <a class="button" href="{{ fight_change_url }}">Fight record</a>
+        <a class="button default" href="{{ add_mechanic_url }}">Add mechanic</a>
+      </div>
+    </div>
+
+    {% if mechanics %}
+      {% for mechanic in mechanics %}
+        <section class="rc-card" id="mechanic-{{ mechanic.pk }}">
+          <div class="rc-card-header">
+            <div>
+              <h2>{{ mechanic.order }}. {{ mechanic.name }}</h2>
+              <p>
+                {% if mechanic.phase_name %}{{ mechanic.phase_name }} · {% endif %}
+                {{ mechanic.step_total }} steps · {{ mechanic.role_variant_total }} role variants
+              </p>
+            </div>
+            <div class="rc-link-row">
+              <a class="button" href="{% url 'admin:raids_mechanic_change' mechanic.pk %}">Edit mechanic</a>
+              <a class="button default" href="{% url 'admin:raids_mechanicstep_add' %}?mechanic={{ mechanic.pk }}">Add step</a>
+            </div>
+          </div>
+
+          {% if mechanic.description %}
+            <p class="rc-description">{{ mechanic.description }}</p>
+          {% endif %}
+
+          {% if mechanic.sorted_steps %}
+            <div class="rc-step-list">
+              {% for step in mechanic.sorted_steps %}
+                <article class="rc-step-card" id="step-{{ step.pk }}">
+                  <div class="rc-step-header">
+                    <div>
+                      <h3>Step {{ step.order }} · {{ step.title }}</h3>
+                      <p>{{ step.get_action_type_display }}{% if step.timer_seconds %} · {{ step.timer_seconds }}s{% endif %}</p>
+                    </div>
+                    <div class="rc-link-row">
+                      <a class="button" href="{% url 'admin:raids_mechanicstep_change' step.pk %}">Edit step</a>
+                      <a class="button default" href="{% url 'admin:raids_rolevariant_add' %}?step={{ step.pk }}">Add role variant</a>
+                    </div>
+                  </div>
+
+                  {% if step.narration %}
+                    <p class="rc-description">{{ step.narration }}</p>
+                  {% endif %}
+
+                  {% with variants=step.role_variants.all %}
+                    {% if variants %}
+                      <table class="rc-table">
+                        <thead>
+                          <tr>
+                            <th>Role</th>
+                            <th>Spot</th>
+                            <th>Choice</th>
+                            <th>Position</th>
+                            <th>Tolerance</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for variant in variants %}
+                            <tr>
+                              <td>{{ variant.get_role_display }}</td>
+                              <td>{{ variant.spot }}</td>
+                              <td>{{ variant.correct_choice|default:"—" }}</td>
+                              <td>{{ variant.correct_position|default:"—" }}</td>
+                              <td>{{ variant.tolerance|default:"Default" }}</td>
+                              <td>
+                                <a href="{% url 'admin:raids_rolevariant_change' variant.pk %}">Edit</a>
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    {% else %}
+                      <p class="rc-empty">No role variants defined for this step yet.</p>
+                    {% endif %}
+                  {% endwith %}
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="rc-empty">No steps defined for this mechanic yet.</p>
+          {% endif %}
+        </section>
+      {% endfor %}
+    {% else %}
+      <section class="rc-card">
+        <p class="rc-empty">No mechanics defined for this fight yet.</p>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

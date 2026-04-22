@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TimerProps {
   seconds: number;
@@ -10,20 +10,24 @@ interface TimerProps {
 
 export default function Timer({ seconds, running, onExpire }: TimerProps) {
   const [remaining, setRemaining] = useState(seconds);
+  const expiredRef = useRef(false);
 
   useEffect(() => {
-    if (!running || remaining <= 0) return;
+    if (!running || seconds <= 0) return;
+
+    expiredRef.current = false;
     const interval = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          onExpire();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setRemaining((prev) => Math.max(prev - 1, 0));
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [running, remaining, onExpire]);
+  }, [running, seconds]);
+
+  useEffect(() => {
+    if (!running || seconds <= 0 || remaining > 0 || expiredRef.current) return;
+    expiredRef.current = true;
+    onExpire();
+  }, [onExpire, remaining, running, seconds]);
 
   if (seconds === 0) return null;
 

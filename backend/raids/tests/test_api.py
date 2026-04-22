@@ -1,6 +1,8 @@
 """Integration tests for the raids REST API."""
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.test.client import Client
 from rest_framework.test import APIClient
 
 from raids.models import (
@@ -82,6 +84,18 @@ class FightAPITests(APITestBase):
         resp2 = self.client.get("/api/fights/?difficulty=ultimate")
         self.assertEqual(resp2.json()["count"], 0)
 
+    def test_fight_list_works_with_admin_session_cookie(self):
+        admin_user = get_user_model().objects.create_superuser(
+            username="fight-admin",
+            email="fight-admin@example.com",
+            password="password123",
+        )
+        client = Client(enforce_csrf_checks=True, HTTP_ORIGIN="http://localhost:3000")
+        client.force_login(admin_user)
+        resp = client.get("/api/fights/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 1)
+
 
 class DrillPlanAPITests(APITestBase):
     @classmethod
@@ -132,6 +146,18 @@ class DrillPlanAPITests(APITestBase):
     def test_unknown_fight_returns_404(self):
         resp = self.client.get("/api/fights/nope/drill/")
         self.assertEqual(resp.status_code, 404)
+
+    def test_drill_plan_works_with_admin_session_cookie(self):
+        admin_user = get_user_model().objects.create_superuser(
+            username="drill-admin",
+            email="drill-admin@example.com",
+            password="password123",
+        )
+        client = Client(enforce_csrf_checks=True, HTTP_ORIGIN="http://localhost:3000")
+        client.force_login(admin_user)
+        resp = client.get("/api/fights/test-fight/drill/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["fight"]["slug"], "test-fight")
 
 
 class MechanicAPITests(APITestBase):
@@ -197,6 +223,34 @@ class SimulateStepAPITests(APITestBase):
         self.assertEqual(data["total_steps"], 1)
         self.assertEqual(data["correct"], 1)
         self.assertEqual(data["grade"], "S")
+
+    def test_simulate_step_is_csrf_exempt(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        resp = csrf_client.post("/api/simulate-step/", {
+            "step_id": self.step.pk,
+            "role": "TANK",
+            "submitted_x": 0.75,
+            "submitted_y": 0.5,
+        }, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["is_correct"])
+
+    def test_simulate_step_works_with_admin_session_cookie(self):
+        admin_user = get_user_model().objects.create_superuser(
+            username="api-admin",
+            email="admin@example.com",
+            password="password123",
+        )
+        csrf_client = Client(enforce_csrf_checks=True, HTTP_ORIGIN="http://localhost:3000")
+        csrf_client.force_login(admin_user)
+        resp = csrf_client.post("/api/simulate-step/", {
+            "step_id": self.step.pk,
+            "role": "TANK",
+            "submitted_x": 0.75,
+            "submitted_y": 0.5,
+        }, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["is_correct"])
 
 
 class SessionStatsAPITests(APITestBase):

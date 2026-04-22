@@ -1,9 +1,11 @@
 """API views for the raids app."""
 
 from django.db.models import Avg, Count, Q
+from django.utils.decorators import method_decorator
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.views.decorators.csrf import csrf_exempt
 
 from .engine import evaluate_step
 from .models import (
@@ -146,6 +148,7 @@ class MechanicDetailView(generics.RetrieveAPIView):
 # Simulation / Validation
 # ---------------------------------------------------------------------------
 
+@method_decorator(csrf_exempt, name="dispatch")
 class SimulateStepView(APIView):
     """
     POST /api/simulate-step/
@@ -153,7 +156,6 @@ class SimulateStepView(APIView):
     Accepts the user's answer for a mechanic step and returns evaluation.
     Optionally records the result to a session.
     """
-
     def post(self, request):
         ser = SimulateStepSerializer(data=request.data)
         ser.is_valid(raise_exception=True)

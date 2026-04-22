@@ -140,6 +140,57 @@ function DrillStepScreen({
     [mechanic, recordStep, role, sessionKey, spot, step]
   );
 
+  const submitChoice = useCallback(
+    async (choiceId: string, timeTaken: number) => {
+      const res = await simulateStep({
+        step_id: step.id,
+        role,
+        spot,
+        submitted_choice: choiceId,
+        session_key: sessionKey,
+        time_taken_ms: timeTaken,
+      });
+
+      setResult(res);
+      recordStep({
+        mechanicId: mechanic.id,
+        stepId: step.id,
+        result: res,
+        timeTakenMs: timeTaken,
+      });
+    },
+    [mechanic.id, recordStep, role, sessionKey, spot, step.id]
+  );
+
+  const submitTimeout = useCallback(
+    async (timeTaken: number) => {
+      const params = {
+        step_id: step.id,
+        role,
+        spot,
+        session_key: sessionKey,
+        time_taken_ms: timeTaken,
+      };
+      const res =
+        step.action_type === "CHOICE"
+          ? await simulateStep(params)
+          : await simulateStep({
+              ...params,
+              submitted_x: null,
+              submitted_y: null,
+            });
+
+      setResult(res);
+      recordStep({
+        mechanicId: mechanic.id,
+        stepId: step.id,
+        result: res,
+        timeTakenMs: timeTaken,
+      });
+    },
+    [mechanic.id, recordStep, role, sessionKey, spot, step.action_type, step.id]
+  );
+
   const handlePositionClick = async (
     pos: { x: number; y: number },
     eventTimeStamp: number
@@ -166,22 +217,7 @@ function DrillStepScreen({
       0,
       Math.round(eventTimeStamp - startTimeRef.current)
     );
-    const res = await simulateStep({
-      step_id: step.id,
-      role,
-      spot,
-      submitted_choice: choiceId,
-      session_key: sessionKey,
-      time_taken_ms: timeTaken,
-    });
-
-    setResult(res);
-    recordStep({
-      mechanicId: mechanic.id,
-      stepId: step.id,
-      result: res,
-      timeTakenMs: timeTaken,
-    });
+    await submitChoice(choiceId, timeTaken);
     setLoading(false);
   };
 
@@ -191,9 +227,9 @@ function DrillStepScreen({
     setTimerRunning(false);
 
     const timeTaken = step.timer_seconds * 1000;
-    await submitPosition({ x: -1, y: -1 }, timeTaken);
+    await submitTimeout(timeTaken);
     setLoading(false);
-  }, [loading, result, step, submitPosition]);
+  }, [loading, result, step.timer_seconds, submitTimeout]);
 
   const handleNext = () => {
     advanceStep();
