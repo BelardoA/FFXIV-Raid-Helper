@@ -294,7 +294,13 @@ function DrillStepScreen({
           onExpire={handleTimerExpire}
         />
       </div>
-      <p className="text-sm text-white/50 mb-6">{step.narration}</p>
+      {!result && (
+        <p className="text-sm text-white/30 italic mb-6">
+          {step.action_type === "CHOICE"
+            ? "Choose your response below."
+            : "Click where you would position on the arena."}
+        </p>
+      )}
 
       {/* Arena or Choice UI */}
       {step.action_type === "POSITION" ? (
@@ -340,6 +346,14 @@ function DrillStepScreen({
       {/* Result feedback */}
       {result && (
         <div className="mt-6 space-y-4">
+          {/* Narration revealed post-submission */}
+          <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+            <p className="text-xs text-text-muted uppercase tracking-widest mb-1 font-cinzel">
+              What happens
+            </p>
+            <p className="text-sm text-white/70">{step.narration}</p>
+          </div>
+
           <div
             className={`p-4 rounded-xl border ${
               result.is_correct

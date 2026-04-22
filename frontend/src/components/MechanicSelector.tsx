@@ -176,13 +176,12 @@ export default function MechanicSelector() {
                 disabled={starting}
                 className="group w-full text-left p-4 rounded-xl border border-white/5 bg-bg-card hover:bg-bg-card-hover hover:border-gold/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-wait"
               >
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-2">
                   <span className="font-cinzel text-base font-bold text-gold-light group-hover:text-gold transition-colors">
                     {mech.name}
                   </span>
                   <Stars count={mech.difficulty_rating} />
                 </div>
-                <p className="text-sm text-white/40 mb-2">{mech.description}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   {mech.tags.map((tag) => (
                     <span
