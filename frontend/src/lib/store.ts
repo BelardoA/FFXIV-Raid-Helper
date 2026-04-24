@@ -1,14 +1,7 @@
-/** Zustand store — predictable state for the drill flow. */
+/** Zustand store — data state only. Navigation handled by Next.js router. */
 
 import { create } from "zustand";
 import type { DrillPlan, Fight, Role, Spot, StepResult } from "./types";
-
-export type AppPhase =
-  | "role-select"
-  | "fight-browse"
-  | "mechanic-select"
-  | "drilling"
-  | "result";
 
 export interface DrillStepRecord {
   mechanicId: number;
@@ -18,31 +11,22 @@ export interface DrillStepRecord {
 }
 
 interface AppState {
-  // Navigation
-  phase: AppPhase;
-
-  // Selections
   role: Role | null;
   spot: Spot;
   fight: Fight | null;
   drillPlan: DrillPlan | null;
-
-  // Drill progression — flat (mechanicIndex, stepIndex) pointer into drillPlan.
   currentMechanicIndex: number;
   currentStepIndex: number;
   stepResults: DrillStepRecord[];
   sessionKey: string;
 
-  // Actions
   selectRole: (role: Role, spot?: Spot) => void;
   selectSpot: (spot: Spot) => void;
   selectFight: (fight: Fight) => void;
   startDrill: (plan: DrillPlan) => void;
   recordStep: (record: DrillStepRecord) => void;
   advanceStep: () => void;
-  finishDrill: () => void;
   reset: () => void;
-  goToPhase: (phase: AppPhase) => void;
 }
 
 function generateSessionKey(): string {
@@ -50,7 +34,6 @@ function generateSessionKey(): string {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  phase: "role-select",
   role: null,
   spot: 1,
   fight: null,
@@ -60,16 +43,13 @@ export const useAppStore = create<AppState>((set) => ({
   stepResults: [],
   sessionKey: generateSessionKey(),
 
-  selectRole: (role, spot = 1) => set({ role, spot, phase: "fight-browse" }),
-
+  selectRole: (role, spot = 1) => set({ role, spot }),
   selectSpot: (spot) => set({ spot }),
-
-  selectFight: (fight) => set({ fight, phase: "mechanic-select" }),
+  selectFight: (fight) => set({ fight }),
 
   startDrill: (plan) =>
     set({
       drillPlan: plan,
-      phase: "drilling",
       currentMechanicIndex: 0,
       currentStepIndex: 0,
       stepResults: [],
@@ -83,26 +63,17 @@ export const useAppStore = create<AppState>((set) => ({
       if (!s.drillPlan) return {};
       const mech = s.drillPlan.mechanics[s.currentMechanicIndex];
       if (!mech) return {};
-      // More steps remaining in the current mechanic?
       if (s.currentStepIndex + 1 < mech.steps.length) {
         return { currentStepIndex: s.currentStepIndex + 1 };
       }
-      // Move to the next mechanic.
       if (s.currentMechanicIndex + 1 < s.drillPlan.mechanics.length) {
-        return {
-          currentMechanicIndex: s.currentMechanicIndex + 1,
-          currentStepIndex: 0,
-        };
+        return { currentMechanicIndex: s.currentMechanicIndex + 1, currentStepIndex: 0 };
       }
-      // Drill complete.
-      return { phase: "result" as AppPhase };
+      return {};
     }),
-
-  finishDrill: () => set({ phase: "result" }),
 
   reset: () =>
     set({
-      phase: "role-select",
       role: null,
       spot: 1,
       fight: null,
@@ -112,6 +83,4 @@ export const useAppStore = create<AppState>((set) => ({
       stepResults: [],
       sessionKey: generateSessionKey(),
     }),
-
-  goToPhase: (phase) => set({ phase }),
 }));

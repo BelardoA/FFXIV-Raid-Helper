@@ -3,6 +3,8 @@
 import type {
   DrillPlan,
   Fight,
+  ImportPreview,
+  ImportSaveResult,
   Mechanic,
   RaidTier,
   Role,
@@ -96,6 +98,16 @@ export async function simulateStep(params: {
   time_taken_ms?: number;
 }): Promise<StepResult> {
   return post<StepResult>("/simulate-step/", params);
+}
+
+// --- WtfDig importer ---
+
+export async function previewImport(url: string): Promise<ImportPreview> {
+  return post<ImportPreview>("/import/preview/", { url });
+}
+
+export async function saveImport(preview: ImportPreview): Promise<ImportSaveResult> {
+  return post<ImportSaveResult>("/import/save/", preview);
 }
 
 // --- Sessions ---

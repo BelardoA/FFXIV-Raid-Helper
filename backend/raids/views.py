@@ -1,5 +1,8 @@
 """API views for the raids app."""
 
+import copy
+import json
+
 from django.db.models import Avg, Count, Q
 from django.utils.decorators import method_decorator
 from rest_framework import generics, status
@@ -14,6 +17,7 @@ from .models import (
     Mechanic,
     MechanicStep,
     RaidTier,
+    RoleVariant,
     UserSession,
 )
 from .serializers import (
@@ -257,6 +261,150 @@ class SessionStatsView(APIView):
             "per_mechanic": per_mechanic,
         }
         return Response(SessionStatsSerializer(payload).data)
+
+
+# ---------------------------------------------------------------------------
+# WtfDig importer
+# ---------------------------------------------------------------------------
+
+@method_decorator(csrf_exempt, name="dispatch")
+class WtfdigPreviewView(APIView):
+    """
+    POST /api/import/preview/
+    Body: {"url": "https://wtfdig.info/74/m9s#toxic"}
+
+    Fetches the page, calls Claude to generate structured fight data,
+    and returns a preview JSON the frontend can walk the user through.
+    """
+
+    def post(self, request):
+        from .importer import fetch_page_text, generate_preview, parse_wtfdig_url
+
+        url = (request.data.get("url") or "").strip()
+        if not url:
+            return Response({"error": "url is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed = parse_wtfdig_url(url)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        scraped = fetch_page_text(url)
+
+        try:
+            preview = generate_preview(
+                url=url,
+                fight_slug=parsed["fight_slug"],
+                strat=parsed["strat"],
+                scraped_text=scraped,
+            )
+        except (ImportError, EnvironmentError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except json.JSONDecodeError as exc:
+            return Response(
+                {"error": f"AI returned invalid JSON: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception as exc:
+            return Response(
+                {"error": f"Import failed: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(preview)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ImportSaveView(APIView):
+    """
+    POST /api/import/save/
+    Body: the confirmed preview JSON (fight + tier + mechanics).
+
+    Creates or replaces the fight (and its whole mechanic tree) in the DB.
+    Existing fight with the same slug is deleted first so this is idempotent.
+    """
+
+    def post(self, request):
+        data = copy.deepcopy(request.data)
+
+        fight_data = data.get("fight") or {}
+        tier_data  = data.get("tier")  or {}
+        mechanics_data = data.get("mechanics") or []
+
+        if not fight_data.get("slug"):
+            return Response({"error": "fight.slug is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not tier_data.get("slug"):
+            return Response({"error": "tier.slug is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            tier, _ = RaidTier.objects.get_or_create(
+                slug=tier_data["slug"],
+                defaults={
+                    "name":      tier_data.get("name", tier_data["slug"]),
+                    "expansion": tier_data.get("expansion", ""),
+                    "patch":     tier_data.get("patch", ""),
+                    "order":     tier_data.get("order", 99),
+                },
+            )
+
+            # Clean-replace: remove any previous version of this fight.
+            Fight.objects.filter(slug=fight_data["slug"]).delete()
+
+            fight = Fight.objects.create(
+                raid_tier=tier,
+                slug=fight_data["slug"],
+                name=fight_data.get("name", fight_data["slug"]),
+                short_name=fight_data.get("short_name", fight_data["slug"].upper()),
+                boss_name=fight_data.get("boss_name", ""),
+                difficulty=fight_data.get("difficulty", "SAVAGE"),
+                arena_shape=fight_data.get("arena_shape", "SQUARE"),
+                order=fight_data.get("order", 99),
+                arena_image_url=fight_data.get("arena_image_url", ""),
+                boss_image_url=fight_data.get("boss_image_url", ""),
+            )
+
+            for i, mech_data in enumerate(mechanics_data, start=1):
+                steps_data = mech_data.pop("steps", [])
+                mech_data.setdefault("order", i)
+                mech = Mechanic.objects.create(fight=fight, **mech_data)
+
+                for j, step_data in enumerate(steps_data, start=1):
+                    variants_data = step_data.pop("role_variants", [])
+                    step_data.setdefault("order", j)
+                    # Ensure JSON fields have correct defaults
+                    step_data.setdefault("arena_state", {})
+                    step_data.setdefault("choices", [])
+                    step = MechanicStep.objects.create(mechanic=mech, **step_data)
+
+                    for variant_data in variants_data:
+                        variant_data.setdefault("correct_position", {})
+                        variant_data.setdefault("correct_choice", "")
+                        variant_data.setdefault("alt_positions", [])
+                        variant_data.setdefault("safe_zones", [])
+                        RoleVariant.objects.create(step=step, **variant_data)
+
+        except Exception as exc:
+            return Response(
+                {"error": f"Save failed: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        fight_obj = (
+            Fight.objects.select_related("raid_tier")
+            .prefetch_related("mechanics")
+            .get(pk=fight.pk)
+        )
+        return Response(
+            {
+                "success": True,
+                "fight": FightDetailSerializer(fight_obj).data,
+                "message": (
+                    f"Imported {fight.short_name} with "
+                    f"{len(mechanics_data)} mechanic(s)."
+                ),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 def _compute_grade(accuracy: float) -> str:

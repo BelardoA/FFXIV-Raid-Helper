@@ -14,12 +14,10 @@ export default function Timer({ seconds, running, onExpire }: TimerProps) {
 
   useEffect(() => {
     if (!running || seconds <= 0) return;
-
     expiredRef.current = false;
     const interval = setInterval(() => {
       setRemaining((prev) => Math.max(prev - 1, 0));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [running, seconds]);
 
@@ -35,19 +33,17 @@ export default function Timer({ seconds, running, onExpire }: TimerProps) {
   const urgent = pct <= 0.3;
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-32 h-2 rounded-full bg-white/10 overflow-hidden">
+    <div className="flex items-center gap-3">
+      {/* Limit-break style gauge */}
+      <div className="w-28 lb-gauge rounded-sm">
         <div
-          className={`h-full rounded-full transition-all duration-1000 ${
-            urgent ? "bg-red-500" : "bg-gold"
-          }`}
+          className={`lb-fill rounded-sm ${urgent ? "urgent" : ""}`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>
       <span
-        className={`font-mono text-sm font-bold ${
-          urgent ? "text-red-400" : "text-gold"
-        }`}
+        className="font-mono text-sm font-bold tabular-nums w-8 text-right"
+        style={{ color: urgent ? "#ff6060" : "var(--color-gold)" }}
       >
         {remaining}s
       </span>

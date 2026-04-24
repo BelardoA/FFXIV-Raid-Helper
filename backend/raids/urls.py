@@ -25,4 +25,7 @@ urlpatterns = [
         views.SessionStatsView.as_view(),
         name="session-stats",
     ),
+    # WtfDig importer
+    path("import/preview/", views.WtfdigPreviewView.as_view(), name="import-preview"),
+    path("import/save/",    views.ImportSaveView.as_view(),    name="import-save"),
 ]

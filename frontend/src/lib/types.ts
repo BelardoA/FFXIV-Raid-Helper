@@ -186,6 +186,74 @@ export interface DrillPlan {
   mechanics: Mechanic[];
 }
 
+// --- WtfDig import preview ---
+
+export interface ImportPreviewFight {
+  slug: string;
+  name: string;
+  short_name: string;
+  boss_name: string;
+  difficulty: Difficulty;
+  arena_shape: ArenaShape;
+  order?: number;
+  arena_image_url?: string;
+  boss_image_url?: string;
+}
+
+export interface ImportPreviewTier {
+  slug: string;
+  name: string;
+  expansion: string;
+  patch: string;
+  order: number;
+}
+
+export interface ImportRoleVariant {
+  role: Role;
+  spot: Spot;
+  correct_position?: { x: number; y: number };
+  correct_choice?: string;
+  tolerance?: number | null;
+  safe_zones?: SafeZone[];
+  explanation?: string;
+}
+
+export interface ImportStep {
+  order: number;
+  title: string;
+  narration?: string;
+  timer_seconds?: number;
+  default_tolerance?: number | null;
+  action_type: ActionType;
+  arena_state: ArenaState;
+  choices?: ChoiceOption[];
+  explanation?: string;
+  role_variants: ImportRoleVariant[];
+}
+
+export interface ImportMechanic {
+  slug: string;
+  name: string;
+  phase_name?: string;
+  description?: string;
+  difficulty_rating?: number;
+  tags?: string[];
+  order?: number;
+  steps: ImportStep[];
+}
+
+export interface ImportPreview {
+  fight: ImportPreviewFight;
+  tier: ImportPreviewTier;
+  mechanics: ImportMechanic[];
+}
+
+export interface ImportSaveResult {
+  success: boolean;
+  fight: Fight;
+  message: string;
+}
+
 // --- Session stats ---
 
 export interface SessionStats {
